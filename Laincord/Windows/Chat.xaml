@@ -1494,144 +1494,20 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                            <Popup x:Name="EmojiFlyout" Closed="EmojiFlyout_Closed" StaysOpen="False" Placement="Bottom" PlacementTarget="{Binding ElementName=EmojiButtonGrid}">
-                                                <Border BorderBrush="#dedede" BorderThickness="1px" Background="White" Width="375px" Height="248px">
-                                                    <StackPanel>
-                                                        <Grid>
-                                                            <TextBlock Text="Your emoticons" Foreground="#333333" FontWeight="Bold" Margin="9,6"/>
-                                                            <TextBlock Text="Show all..." Foreground="#0066cc" HorizontalAlignment="Right" Margin="9,6" Cursor="Hand"/>
-                                                        </Grid>
-                                                        <Grid Margin="9,0,9,9">
-                                                            <Grid.Resources>
-                                                                <Style TargetType="Border" x:Key="EmojiBoxStyle">
-                                                                    <Setter Property="BorderBrush" Value="#dedede"/>
-                                                                    <Setter Property="BorderThickness" Value="1"/>
-                                                                    <Setter Property="Width" Value="26"/>
-                                                                    <Setter Property="Height" Value="26"/>
-                                                                    <Setter Property="Margin" Value="2,2"/>
-                                                                    <Setter Property="Background" Value="#fefefe"/>
-                                                                    <Setter Property="HorizontalAlignment" Value="Left"/>
-                                                                    <Setter Property="VerticalAlignment" Value="Top"/>
-                                                                    <EventSetter Event="MouseLeftButtonUp" Handler="EmojiBox_Click"/>
-                                                                    <Style.Triggers>
-                                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                                            <Setter Property="BorderBrush" Value="#0066cc"/>
-                                                                        </Trigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Grid.Resources>
-
-                                                            <Grid.RowDefinitions>
-                                                                <RowDefinition Height="Auto"/>
-                                                                <RowDefinition Height="Auto"/>
-                                                                <RowDefinition Height="34"/>
-                                                                <RowDefinition Height="Auto"/>
-                                                                <RowDefinition Height="*"/>
-                                                            </Grid.RowDefinitions>
-
-                                                            <TextBlock Grid.Row="1" Text="Recently used emoticons" Foreground="#737373" Margin="0,12,0,5"/>
-
-                                                            <Grid x:Name="RecentEmojiGrid" Grid.Row="2">
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                </Grid.ColumnDefinitions>
-
-                                                                <Border Grid.Column="0" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Column="1" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Column="2" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Column="3" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Column="4" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Column="5" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Column="6" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Column="7" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Column="8" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Column="9" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Column="10" Style="{StaticResource EmojiBoxStyle}"/>
-                                                            </Grid>
-
-                                                            <TextBlock Grid.Row="3" Text="Pinned emoticons" Foreground="#737373" Margin="0,4,0,5"/>
-
-                                                            <Grid x:Name="PinnedEmojiGrid" Grid.Row="4">
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                </Grid.ColumnDefinitions>
-                                                                <Grid.RowDefinitions>
-                                                                    <RowDefinition Height="30"/>
-                                                                    <RowDefinition Height="30"/>
-                                                                    <RowDefinition Height="30"/>
-                                                                    <RowDefinition Height="30"/>
-                                                                </Grid.RowDefinitions>
-
-                                                                <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="0" Grid.Column="3" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="0" Grid.Column="4" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="0" Grid.Column="5" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="0" Grid.Column="6" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="0" Grid.Column="7" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="0" Grid.Column="8" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="0" Grid.Column="9" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="0" Grid.Column="10" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                
-                                                                <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="1" Grid.Column="3" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="1" Grid.Column="4" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="1" Grid.Column="5" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="1" Grid.Column="6" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="1" Grid.Column="7" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="1" Grid.Column="8" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="1" Grid.Column="9" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="1" Grid.Column="10" Style="{StaticResource EmojiBoxStyle}"/>
-
-                                                                <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="2" Grid.Column="2" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="2" Grid.Column="3" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="2" Grid.Column="4" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="2" Grid.Column="5" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="2" Grid.Column="6" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="2" Grid.Column="7" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="2" Grid.Column="8" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="2" Grid.Column="9" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="2" Grid.Column="10" Style="{StaticResource EmojiBoxStyle}"/>
-
-                                                                <Border Grid.Row="3" Grid.Column="0" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="3" Grid.Column="1" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="3" Grid.Column="2" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="3" Grid.Column="3" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="3" Grid.Column="4" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="3" Grid.Column="5" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="3" Grid.Column="6" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="3" Grid.Column="7" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="3" Grid.Column="8" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="3" Grid.Column="9" Style="{StaticResource EmojiBoxStyle}"/>
-                                                                <Border Grid.Row="3" Grid.Column="10" Style="{StaticResource EmojiBoxStyle}"/>
-                                                            </Grid>
-                                                        </Grid>
-                                                    </StackPanel>
+                                            <Popup x:Name="EmojiFlyout" Closed="EmojiFlyout_Closed" StaysOpen="False" Placement="Top" PlacementTarget="{Binding ElementName=EmojiButtonGrid}">
+                                                <Border BorderBrush="#dedede" BorderThickness="1" Background="White" Width="420" Height="380">
+                                                    <DockPanel>
+                                                        <TextBox x:Name="EmojiSearchBox" DockPanel.Dock="Top" Margin="8,8,8,4"
+                                                                 Background="White" Foreground="#333333" BorderBrush="#dedede" BorderThickness="1"
+                                                                 Padding="6,4" FontSize="12"
+                                                                 TextChanged="EmojiSearchBox_TextChanged"/>
+                                                        <Border DockPanel.Dock="Bottom" BorderBrush="#dedede" BorderThickness="0,1,0,0">
+                                                            <StackPanel x:Name="EmojiCategoryTabs" Orientation="Horizontal" Background="#f5f5f5" Margin="4,4,4,4"/>
+                                                        </Border>
+                                                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="4,0">
+                                                            <WrapPanel x:Name="EmojiWrapPanel" Orientation="Horizontal"/>
+                                                        </ScrollViewer>
+                                                    </DockPanel>
                                                 </Border>
                                             </Popup>
                                             <StackPanel Orientation="Horizontal">

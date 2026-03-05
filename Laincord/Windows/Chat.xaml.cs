@@ -1691,35 +1691,262 @@ namespace Laincord.Windows
             ExecuteNudgePrettyPlease(Left, Top, SettingsManager.Instance.NudgeLength, SettingsManager.Instance.NudgeIntensity).ConfigureAwait(false);
         }
 
+        private int _activeEmojiCategory = 0;
+        private static List<EmojiTab> _emojiTabs;
+
+        private record EmojiTab(string Name, string IconUrl, bool IsGuild, ulong GuildId = 0);
+
         private void OpenEmojiFlyout(object sender, MouseButtonEventArgs e)
         {
             EmojiFlyout.IsOpen = true;
-            var imageFiles = EmojiDictionary.Map.Values.Distinct().ToList();
-            int index = 0;
+            if (_emojiTabs == null)
+                _emojiTabs = BuildEmojiTabList();
+            BuildCategoryTabsUI();
+            if (EmojiWrapPanel.Children.Count == 0)
+                PopulateEmojiGrid(0);
+        }
 
-            foreach (var imageName in imageFiles)
+        private static List<EmojiTab> BuildEmojiTabList()
+        {
+            var tabs = new List<EmojiTab>();
+
+            for (int i = 0; i < EmojiCategories.Categories.Length; i++)
             {
-                if (index >= PinnedEmojiGrid.Children.Count) break;
-
-                var border = PinnedEmojiGrid.Children[index] as Border;
-                Image img = new Image();
-
-                if (border != null)
+                var cat = EmojiCategories.Categories[i];
+                string iconUrl = null;
+                if (cat.Name == "Custom")
                 {
-                    img.Source = new BitmapImage(new Uri($"pack://application:,,,/Resources/Emoji/{imageName}"));
-                    img.Stretch = Stretch.Uniform;
-                    img.Margin = new Thickness(3);
-                    img.Tag = EmojiDictionary.Map.FirstOrDefault(kvp => kvp.Value == imageName).Key;
+                    var firstCustom = EmojiDictionary.Map.Values.FirstOrDefault();
+                    if (firstCustom != null)
+                        iconUrl = $"pack://application:,,,/Resources/Emoji/{firstCustom}";
+                }
+                else
+                {
+                    iconUrl = Helpers.TwemojiHelper.GetUrl(cat.IconEmoji);
+                }
+                tabs.Add(new EmojiTab(cat.Name, iconUrl, false));
+            }
+
+            if (Discord.Client?.Guilds != null)
+            {
+                foreach (var kvp in Discord.Client.Guilds)
+                {
+                    var guild = kvp.Value;
+                    if (guild.Emojis == null || guild.Emojis.Count == 0) continue;
+                    string iconUrl = guild.IconUrl != null ? guild.IconUrl + "?size=32" : null;
+                    tabs.Add(new EmojiTab(guild.Name, iconUrl, true, guild.Id));
+                }
+            }
+
+            return tabs;
+        }
+
+        private void BuildCategoryTabsUI()
+        {
+            EmojiCategoryTabs.Children.Clear();
+
+            for (int i = 0; i < _emojiTabs.Count; i++)
+            {
+                var tab = _emojiTabs[i];
+                var border = new Border
+                {
+                    Width = 30,
+                    Height = 30,
+                    Margin = new Thickness(2, 0, 2, 0),
+                    BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xde, 0xde, 0xde)),
+                    BorderThickness = new Thickness(1),
+                    Background = System.Windows.Media.Brushes.White,
+                    Cursor = Cursors.Hand,
+                    Tag = i,
+                    ToolTip = tab.Name,
+                };
+                border.MouseLeftButtonUp += EmojiCategoryTab_Click;
+
+                if (tab.IconUrl != null)
+                {
+                    var bmp = new BitmapImage();
+                    bmp.BeginInit();
+                    bmp.UriSource = new Uri(tab.IconUrl);
+                    bmp.CacheOption = BitmapCacheOption.OnDemand;
+                    bmp.EndInit();
+                    var img = new Image { Source = bmp, Width = 20, Height = 20, Stretch = Stretch.Uniform };
                     border.Child = img;
                 }
 
-                index++;
+                EmojiCategoryTabs.Children.Add(border);
             }
+            UpdateCategoryHighlight(0);
+        }
+
+        private void UpdateCategoryHighlight(int activeIndex)
+        {
+            _activeEmojiCategory = activeIndex;
+            for (int i = 0; i < EmojiCategoryTabs.Children.Count; i++)
+            {
+                var b = (Border)EmojiCategoryTabs.Children[i];
+                b.Background = i == activeIndex
+                    ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xe0, 0xee, 0xf9))
+                    : System.Windows.Media.Brushes.White;
+                b.BorderBrush = i == activeIndex
+                    ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x00, 0x66, 0xcc))
+                    : new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xde, 0xde, 0xde));
+            }
+        }
+
+        private void PopulateEmojiGrid(int categoryIndex)
+        {
+            EmojiWrapPanel.Children.Clear();
+            var tab = _emojiTabs[categoryIndex];
+
+            if (tab.IsGuild)
+            {
+                PopulateGuildEmoji(tab.GuildId);
+            }
+            else
+            {
+                // Find matching static category
+                var cat = EmojiCategories.Categories.FirstOrDefault(c => c.Name == tab.Name);
+                if (cat.Emojis != null)
+                {
+                    foreach (var (name, unicode) in cat.Emojis)
+                        AddEmojiToPanel(name, unicode, cat.Name == "Custom");
+                }
+            }
+        }
+
+        private void PopulateGuildEmoji(ulong guildId)
+        {
+            if (!Discord.Client.Guilds.TryGetValue(guildId, out var guild)) return;
+            foreach (var kvp in guild.Emojis)
+            {
+                var emoji = kvp.Value;
+                AddGuildEmojiToPanel(emoji);
+            }
+        }
+
+        private void PopulateEmojiGridFiltered(string filter)
+        {
+            EmojiWrapPanel.Children.Clear();
+            string lower = filter.ToLowerInvariant();
+
+            // Search static categories
+            foreach (var cat in EmojiCategories.Categories)
+            {
+                foreach (var (name, unicode) in cat.Emojis)
+                {
+                    if (name.Contains(lower))
+                        AddEmojiToPanel(name, unicode, cat.Name == "Custom");
+                }
+            }
+
+            // Search guild emoji
+            if (Discord.Client?.Guilds != null)
+            {
+                foreach (var guildKvp in Discord.Client.Guilds)
+                {
+                    if (guildKvp.Value.Emojis == null) continue;
+                    foreach (var emojiKvp in guildKvp.Value.Emojis)
+                    {
+                        if (emojiKvp.Value.Name.ToLowerInvariant().Contains(lower))
+                            AddGuildEmojiToPanel(emojiKvp.Value);
+                    }
+                }
+            }
+        }
+
+        private void AddEmojiToPanel(string name, string unicode, bool isCustom)
+        {
+            Image img;
+            if (isCustom)
+            {
+                string file = EmojiDictionary.Map.GetValueOrDefault(name);
+                if (file == null) return;
+                img = new Image
+                {
+                    Source = new BitmapImage(new Uri($"pack://application:,,,/Resources/Emoji/{file}")),
+                    Width = 22, Height = 22,
+                    Stretch = Stretch.Uniform,
+                    Tag = name,
+                };
+            }
+            else
+            {
+                string url = Helpers.TwemojiHelper.GetUrl(unicode);
+                if (url == null) return;
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.UriSource = new Uri(url);
+                bmp.CacheOption = BitmapCacheOption.OnDemand;
+                bmp.EndInit();
+                img = new Image
+                {
+                    Source = bmp,
+                    Width = 22, Height = 22,
+                    Tag = name,
+                };
+            }
+
+            AddEmojiBorder(img, name);
+        }
+
+        private void AddGuildEmojiToPanel(DiscordEmoji emoji)
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.UriSource = new Uri(emoji.Url);
+            bmp.CacheOption = BitmapCacheOption.OnDemand;
+            bmp.EndInit();
+            var img = new Image
+            {
+                Source = bmp,
+                Width = 22, Height = 22,
+                Tag = emoji.Name,
+            };
+
+            AddEmojiBorder(img, emoji.Name);
+        }
+
+        private void AddEmojiBorder(Image img, string name)
+        {
+            var border = new Border
+            {
+                Width = 30, Height = 30,
+                Margin = new Thickness(2),
+                BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xde, 0xde, 0xde)),
+                BorderThickness = new Thickness(1),
+                Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xfe, 0xfe, 0xfe)),
+                Cursor = Cursors.Hand,
+                Child = img,
+                ToolTip = $":{name}:",
+            };
+            border.MouseEnter += (s, _) => ((Border)s).BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x00, 0x66, 0xcc));
+            border.MouseLeave += (s, _) => ((Border)s).BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xde, 0xde, 0xde));
+            border.MouseLeftButtonUp += EmojiBox_Click;
+            EmojiWrapPanel.Children.Add(border);
+        }
+
+        private void EmojiCategoryTab_Click(object sender, MouseButtonEventArgs e)
+        {
+            int index = (int)((Border)sender).Tag;
+            UpdateCategoryHighlight(index);
+            EmojiSearchBox.Text = "";
+            PopulateEmojiGrid(index);
+        }
+
+        private void EmojiSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            string text = EmojiSearchBox.Text.Trim();
+            if (string.IsNullOrEmpty(text))
+                PopulateEmojiGrid(_activeEmojiCategory);
+            else
+                PopulateEmojiGridFiltered(text);
         }
 
         private void EmojiBox_Click(object sender, MouseButtonEventArgs e)
         {
             Image imgInside = ((Border)sender).Child as Image;
+            if (imgInside == null) return;
+
             Image newImg = new Image
             {
                 Source = imgInside.Source,
@@ -1781,6 +2008,7 @@ namespace Laincord.Windows
         private void EmojiFlyout_Closed(object sender, EventArgs e)
         {
             EmojiButtonGrid.SetToggle(false);
+            EmojiSearchBox.Text = "";
         }
 
         private async void MessageParser_HyperlinkClicked(object sender, Controls.HyperlinkClickedEventArgs e)
