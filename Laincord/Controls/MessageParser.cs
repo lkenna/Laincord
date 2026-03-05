@@ -235,8 +235,22 @@ namespace Laincord.Controls
 
                         if (emoji == null)
                         {
-                            // just add the character to the current run
-                            currentRun.Text += c;
+                            // If the character is likely an emoji (surrogate pair or symbol)
+                            // but DSharpPlus doesn't recognize it, render as Twemoji image
+                            if (c.Length > 1 || char.IsSurrogate(c[0]) || char.GetUnicodeCategory(c[0]) == System.Globalization.UnicodeCategory.OtherSymbol)
+                            {
+                                inlines.Add(currentRun);
+                                currentRun = new Run();
+                                var twemojiInline = CreateTwemojiInline(c);
+                                if (twemojiInline != null)
+                                    inlines.Add(twemojiInline);
+                                else
+                                    currentRun.Text += c;
+                            }
+                            else
+                            {
+                                currentRun.Text += c;
+                            }
                             continue;
                         }
 
@@ -248,7 +262,11 @@ namespace Laincord.Controls
 
                         if (emojiName is null)
                         {
-                            inlines.Add(new Run(emoji.Name));
+                            var twemojiInline = CreateTwemojiInline(emoji.Name);
+                            if (twemojiInline != null)
+                                inlines.Add(twemojiInline);
+                            else
+                                inlines.Add(new Run(emoji.Name));
                         }
                         else
                         {
@@ -396,6 +414,54 @@ namespace Laincord.Controls
             }
 
             return newTextBlock;
+        }
+
+        private static InlineUIContainer? CreateTwemojiInline(string emojiText)
+        {
+            try
+            {
+                // Convert emoji text to Twemoji codepoint format (e.g. "🫡" -> "1fae1")
+                var codepoints = new System.Collections.Generic.List<string>();
+                for (int j = 0; j < emojiText.Length; j++)
+                {
+                    int cp;
+                    if (char.IsHighSurrogate(emojiText[j]) && j + 1 < emojiText.Length && char.IsLowSurrogate(emojiText[j + 1]))
+                    {
+                        cp = char.ConvertToUtf32(emojiText[j], emojiText[j + 1]);
+                        j++;
+                    }
+                    else
+                    {
+                        cp = emojiText[j];
+                    }
+                    // Skip variation selectors (U+FE0E, U+FE0F)
+                    if (cp == 0xFE0E || cp == 0xFE0F) continue;
+                    codepoints.Add(cp.ToString("x"));
+                }
+                if (codepoints.Count == 0) return null;
+
+                string twemojiId = string.Join("-", codepoints);
+                string url = $"https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/{twemojiId}.png";
+
+                // Remote BitmapImages download asynchronously — don't Freeze()
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.UriSource = new Uri(url);
+                bmp.CacheOption = BitmapCacheOption.OnDemand;
+                bmp.EndInit();
+
+                Image image = new();
+                image.Source = bmp;
+                image.Width = 19;
+                image.Height = 19;
+                image.VerticalAlignment = VerticalAlignment.Center;
+                image.ToolTip = emojiText;
+                return new InlineUIContainer(image);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private bool ContainsEmoji(string text)
