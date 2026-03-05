@@ -102,7 +102,7 @@ namespace Laincord.Windows
             // if we're already closing, don't close again
             if (!_finished || _closing) return;
             _closing = true;
-            Close();
+            try { Close(); } catch (InvalidOperationException) { }
         }
 
         private void OnCloseBtnClick(object sender, RoutedEventArgs e)

@@ -1850,6 +1850,26 @@ namespace Laincord.Windows
             OnImagePreviewerOpened(imagePreviewer);
         }
 
+        private void OnGifvMediaLoaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.MediaElement media
+                && media.DataContext is ViewModels.EmbedViewModel embed
+                && !string.IsNullOrEmpty(embed.Video))
+            {
+                media.Source = new Uri(embed.Video);
+                media.Play();
+            }
+        }
+
+        private void OnGifvMediaEnded(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.MediaElement media)
+            {
+                media.Position = TimeSpan.Zero;
+                media.Play();
+            }
+        }
+
         private void OnImagePreviewerOpened(ImagePreviewer imagePreviewer)
         {
             // set its position to the center of this window
