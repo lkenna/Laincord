@@ -137,7 +137,7 @@ namespace Laincord.Services
             => _discordClient.GetUserProfileAsync(userId, updateCache);
 
         public Task<IReadOnlyList<DiscordMessage>> GetMessagesAsync(DiscordChannel channel)
-            => channel.GetMessagesAsync(10);
+            => channel.GetMessagesAsync(50);
 
         public async Task<SendResult> SendAsync(ulong channelId, DiscordMessageBuilder builder)
         {

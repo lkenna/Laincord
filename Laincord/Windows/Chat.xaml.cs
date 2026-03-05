@@ -1460,6 +1460,37 @@ namespace Laincord.Windows
 
         private void MessageTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (EmojiAutoCompletePopup.IsOpen)
+            {
+                switch (e.Key)
+                {
+                    case Key.Down:
+                        if (EmojiAutoCompleteList.SelectedIndex < EmojiAutoCompleteList.Items.Count - 1)
+                            EmojiAutoCompleteList.SelectedIndex++;
+                        EmojiAutoCompleteList.ScrollIntoView(EmojiAutoCompleteList.SelectedItem);
+                        e.Handled = true;
+                        return;
+                    case Key.Up:
+                        if (EmojiAutoCompleteList.SelectedIndex > 0)
+                            EmojiAutoCompleteList.SelectedIndex--;
+                        EmojiAutoCompleteList.ScrollIntoView(EmojiAutoCompleteList.SelectedItem);
+                        e.Handled = true;
+                        return;
+                    case Key.Tab:
+                    case Key.Enter:
+                        if (EmojiAutoCompleteList.SelectedItem != null)
+                        {
+                            InsertAutoCompleteEmoji((EmojiAutoCompleteItem)EmojiAutoCompleteList.SelectedItem);
+                            e.Handled = true;
+                        }
+                        return;
+                    case Key.Escape:
+                        EmojiAutoCompletePopup.IsOpen = false;
+                        e.Handled = true;
+                        return;
+                }
+            }
+
             if (e.Key == Key.Enter && Keyboard.Modifiers != ModifierKeys.Shift)
             {
                 e.Handled = true;
@@ -1969,6 +2000,187 @@ namespace Laincord.Windows
             MessageTextBox.Focus();
         }
 
+        // --- Emoji Autocomplete ---
+
+        private class EmojiAutoCompleteItem
+        {
+            public string Name { get; set; }
+            public string DisplayName => $":{Name}:";
+            public string ImageUrl { get; set; }
+            public BitmapSource ImageSource { get; set; }
+        }
+
+        private string GetTextBeforeCaret()
+        {
+            var caretPos = MessageTextBox.CaretPosition;
+            var paragraph = caretPos?.Paragraph;
+            if (paragraph == null) return null;
+
+            // Get the Run containing the caret
+            var runBefore = caretPos.GetAdjacentElement(LogicalDirection.Backward) as Run;
+            if (runBefore == null)
+            {
+                // Caret might be at the end of a run
+                var pointer = caretPos;
+                while (pointer != null && pointer.CompareTo(paragraph.ContentStart) > 0)
+                {
+                    pointer = pointer.GetNextContextPosition(LogicalDirection.Backward);
+                    if (pointer?.Parent is Run run)
+                    {
+                        runBefore = run;
+                        break;
+                    }
+                }
+            }
+            if (runBefore == null) return null;
+
+            string text = new TextRange(runBefore.ContentStart, caretPos).Text;
+            return text;
+        }
+
+        private void UpdateEmojiAutoComplete()
+        {
+            string text = GetTextBeforeCaret();
+            if (text == null)
+            {
+                EmojiAutoCompletePopup.IsOpen = false;
+                return;
+            }
+
+            // Find the last ':' that starts an emoji name
+            int colonIdx = text.LastIndexOf(':');
+            if (colonIdx < 0 || colonIdx == text.Length - 1)
+            {
+                EmojiAutoCompletePopup.IsOpen = false;
+                return;
+            }
+
+            // Make sure there's no space between ':' and caret (user is still typing the name)
+            string partial = text.Substring(colonIdx + 1);
+            if (partial.Length < 2 || partial.Contains(' '))
+            {
+                EmojiAutoCompletePopup.IsOpen = false;
+                return;
+            }
+
+            string lower = partial.ToLowerInvariant();
+            var results = new List<EmojiAutoCompleteItem>();
+            int maxResults = 10;
+
+            // Search custom emoji
+            var customSeen = new HashSet<string>();
+            foreach (var kvp in EmojiDictionary.Map)
+            {
+                if (results.Count >= maxResults) break;
+                if (!kvp.Key.Contains(lower)) continue;
+                if (!customSeen.Add(kvp.Value)) continue;
+                results.Add(new EmojiAutoCompleteItem
+                {
+                    Name = kvp.Key,
+                    ImageUrl = $"pack://application:,,,/Resources/Emoji/{kvp.Value}",
+                    ImageSource = new BitmapImage(new Uri($"pack://application:,,,/Resources/Emoji/{kvp.Value}")),
+                });
+            }
+
+            // Search unicode emoji
+            foreach (var cat in EmojiCategories.Categories)
+            {
+                if (cat.Name == "Custom") continue;
+                foreach (var (name, unicode) in cat.Emojis)
+                {
+                    if (results.Count >= maxResults) break;
+                    if (!name.Contains(lower)) continue;
+                    string url = Helpers.TwemojiHelper.GetUrl(unicode);
+                    if (url == null) continue;
+                    results.Add(new EmojiAutoCompleteItem { Name = name, ImageUrl = url });
+                }
+                if (results.Count >= maxResults) break;
+            }
+
+            // Search guild emoji
+            if (Discord.Client?.Guilds != null)
+            {
+                foreach (var guild in Discord.Client.Guilds.Values)
+                {
+                    if (guild.Emojis == null) continue;
+                    foreach (var emojiKvp in guild.Emojis)
+                    {
+                        if (results.Count >= maxResults) break;
+                        if (!emojiKvp.Value.Name.ToLowerInvariant().Contains(lower)) continue;
+                        results.Add(new EmojiAutoCompleteItem { Name = emojiKvp.Value.Name, ImageUrl = emojiKvp.Value.Url });
+                    }
+                    if (results.Count >= maxResults) break;
+                }
+            }
+
+            if (results.Count == 0)
+            {
+                EmojiAutoCompletePopup.IsOpen = false;
+                return;
+            }
+
+            EmojiAutoCompleteList.ItemsSource = results;
+            EmojiAutoCompleteList.SelectedIndex = 0;
+            EmojiAutoCompletePopup.IsOpen = true;
+        }
+
+        private void InsertAutoCompleteEmoji(EmojiAutoCompleteItem item)
+        {
+            EmojiAutoCompletePopup.IsOpen = false;
+
+            // Delete the `:partial` text before caret
+            string text = GetTextBeforeCaret();
+            if (text == null) return;
+            int colonIdx = text.LastIndexOf(':');
+            if (colonIdx < 0) return;
+            int charsToDelete = text.Length - colonIdx;
+
+            var caretPos = MessageTextBox.CaretPosition;
+            var start = caretPos.GetPositionAtOffset(-charsToDelete);
+            if (start != null)
+            {
+                new TextRange(start, caretPos).Text = "";
+            }
+
+            // Insert emoji image
+            var source = item.ImageSource;
+            if (source == null && item.ImageUrl != null)
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.UriSource = new Uri(item.ImageUrl);
+                bmp.CacheOption = BitmapCacheOption.OnDemand;
+                bmp.EndInit();
+                source = bmp;
+            }
+            Image newImg = new Image
+            {
+                Source = source,
+                Width = 16,
+                Height = 16
+            };
+            InlineUIContainer container = new InlineUIContainer(newImg);
+            container.Tag = item.Name;
+
+            Paragraph paragraph = MessageTextBox.Document.Blocks.LastBlock as Paragraph;
+            if (paragraph == null)
+            {
+                paragraph = new Paragraph();
+                MessageTextBox.Document.Blocks.Add(paragraph);
+            }
+
+            // Insert at current caret position
+            paragraph.Inlines.InsertAfter(paragraph.Inlines.LastInline, container);
+            MessageTextBox.CaretPosition = paragraph.ContentEnd;
+            MessageTextBox.Focus();
+        }
+
+        private void EmojiAutoCompleteList_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (EmojiAutoCompleteList.SelectedItem is EmojiAutoCompleteItem item)
+                InsertAutoCompleteEmoji(item);
+        }
+
         private void JumpToReply(object sender, MouseButtonEventArgs e)
         {
             var messageVm = (sender as Panel)?.DataContext as MessageViewModel;
@@ -2416,10 +2628,7 @@ namespace Laincord.Windows
                 typingTimer.Start();
             }
 
-            /*if (GetMessageBoxText().EndsWith(':')) TODO: Emoji suggestions popup
-            {
-                
-            }*/            
+            UpdateEmojiAutoComplete();
         }
 
         private void OnMessageContextMenuOpening(object senderRaw, ContextMenuEventArgs e)

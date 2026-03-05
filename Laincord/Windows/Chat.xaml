@@ -1391,6 +1391,22 @@
                                         <ColumnDefinition Width="16*"/>
                                         <ColumnDefinition Width="65*"/>
                                     </Grid.ColumnDefinitions>
+                                    <Popup x:Name="EmojiAutoCompletePopup" StaysOpen="False" Placement="Top" PlacementTarget="{Binding ElementName=MessageTextBox}" AllowsTransparency="True">
+                                        <Border BorderBrush="#dedede" BorderThickness="1" Background="White" MaxHeight="200" MinWidth="250">
+                                            <ListBox x:Name="EmojiAutoCompleteList" SelectionMode="Single" BorderThickness="0"
+                                                     PreviewMouseLeftButtonUp="EmojiAutoCompleteList_MouseUp"
+                                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Orientation="Horizontal" Margin="2">
+                                                            <Image Source="{Binding ImageUrl, IsAsync=True}" Width="20" Height="20" Margin="0,0,6,0"/>
+                                                            <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" Foreground="#333"/>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+                                        </Border>
+                                    </Popup>
                                     <RichTextBox Visibility="Visible" ScrollViewer.ScrollChanged="MessageTextBox_SizeChanged" TextChanged="MessageTextBox_TextChanged" IsEnabled="{Binding Channel.CanTalk}" LostFocus="MessageTextBox_LostFocus" IsInactiveSelectionHighlightEnabled="True" VerticalScrollBarVisibility="Auto" AcceptsReturn="True" PreviewKeyDown="MessageTextBox_PreviewKeyDown" Padding="3,4" Background="Transparent" FontSize="14" Panel.ZIndex="10" x:Name="MessageTextBox" Grid.ColumnSpan="2">
                                         <RichTextBox.Style>
                                             <Style BasedOn="{x:Null}" TargetType="{x:Type RichTextBox}">

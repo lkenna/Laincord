@@ -570,55 +570,45 @@ namespace Laincord
                     if (!isDM && !isMention)
                         return;
 
-                    if (Discord.Client.CurrentUser.Presence?.Status == UserStatus.DoNotDisturb)
-                        return;
+                    bool dnd = Discord.Client.CurrentUser.Presence?.Status == UserStatus.DoNotDisturb;
 
-                    if (isDM && !SettingsManager.Instance.NotifyDm)
-                        return;
-
-                    if (isMention && !SettingsManager.Instance.NotifyMention)
-                        return;
-
-                    await Current.Dispatcher.InvokeAsync(() =>
+                    // Auto-open DM chat windows (MSN-style) — works even in DND
+                    if (isDM && SettingsManager.Instance.AutomaticallyOpenNotification)
                     {
-                        Home? homeWindow = null;
-
-                        foreach (Window wnd in Current.Windows)
+                        await Current.Dispatcher.InvokeAsync(() =>
                         {
-                            if (wnd is Chat chat)
+                            foreach (Window wnd in Current.Windows)
                             {
-                                if (e.Channel?.Id == chat.Channel?.Id)
+                                if (wnd is Chat existingChat && e.Channel?.Id == existingChat.Channel?.Id)
                                 {
-                                    if (SettingsManager.Instance.AutomaticallyOpenNotification)
-                                        return;
-
-                                    if (chat.IsActive)
-                                        return;
-
-                                    break;
+                                    existingChat.Show();
+                                    existingChat.WindowState = WindowState.Normal;
+                                    existingChat.Activate();
+                                    return;
                                 }
                             }
-                            else if (wnd is Home foundHomeWindow)
-                            {
-                                homeWindow = foundHomeWindow;
-                            }
-                        }
-
-                        if (SettingsManager.Instance.AutomaticallyOpenNotification)
-                        {
-                            PresenceViewModel? presenceVm = null;
 
                             if (e.Channel?.Id != null)
                             {
-                                if (homeWindow != null)
-                                {
-                                    // Try to get the presence so we can display the correct status when the window
-                                    // opens.
-                                    presenceVm = homeWindow.FindPresenceForUserId(e.Channel.Id);
-                                }
-
+                                Home? homeWindow = Current.Windows.OfType<Home>().FirstOrDefault();
+                                PresenceViewModel? presenceVm = homeWindow?.FindPresenceForUserId(e.Channel.Id);
                                 new Chat(e.Channel.Id, false, presenceVm);
                             }
+                        });
+                    }
+
+                    // DND / notification settings — suppress popups and sounds
+                    if (dnd) return;
+                    if (isDM && !SettingsManager.Instance.NotifyDm) return;
+                    if (isMention && !SettingsManager.Instance.NotifyMention) return;
+
+                    await Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        // Skip notification if chat window is already active
+                        foreach (Window wnd in Current.Windows)
+                        {
+                            if (wnd is Chat chat && e.Channel?.Id == chat.Channel?.Id && chat.IsActive)
+                                return;
                         }
 
                         Notification notification = new(NotificationType.Message, e.Message);

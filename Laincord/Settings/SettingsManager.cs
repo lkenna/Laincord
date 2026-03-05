@@ -168,7 +168,7 @@ namespace Laincord.Settings
         public bool NotifyChat { get; set; } = true;
         
         [Settings("Alerts", "Open a new chat window whenever I get a DM")]
-        public bool AutomaticallyOpenNotification { get; set; } = false;
+        public bool AutomaticallyOpenNotification { get; set; } = true;
 
 
         [Settings("Alerts", "Play notification sounds")]
