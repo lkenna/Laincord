@@ -150,8 +150,8 @@ namespace Laincord.ViewModels
         {
             Avatar = "/Laincord;component/Resources/Frames/PlaceholderPfp.png",
             Id = 0,
-            Name = "nullptr",
-            Username = "notnullptr"
+            Name = "Lain",
+            Username = "lain"
         };
 
         public UserViewModel CurrentUser
