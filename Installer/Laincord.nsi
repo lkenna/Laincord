@@ -13,9 +13,9 @@ RequestExecutionLevel user
 ManifestSupportedOS Win7
 
 !define LAINCORD_BIN_FOLDER "bin\x64\Release\net8.0-windows7.0"
-!define LAINCORD_VERSION "0.2.4"
-!define LAINCORD_RC # Comment this line out if you aren't building RC
-!define LAINCORD_RC_VERSION "Stability Test Release"
+!define LAINCORD_VERSION "2026.0.1"
+;!define LAINCORD_RC # Comment this line out if you aren't building RC
+;!define LAINCORD_RC_VERSION "Stability Test Release"
 
 !ifdef LAINCORD_RC
     !define LAINCORD_RC_SUFFIX " ${LAINCORD_RC_VERSION}"
@@ -40,7 +40,7 @@ VIProductVersion "${LAINCORD_VERSION}.0"
 VIFileVersion "${LAINCORD_VERSION}.0"
 VIAddVersionKey "FileDescription" "Laincord Setup v${LAINCORD_VERSION}${LAINCORD_RC_SUFFIX}"
 VIAddVersionKey "FileVersion" "${LAINCORD_VERSION}"
-VIAddVersionKey "LegalCopyright" "nullptr"
+VIAddVersionKey "LegalCopyright" "Lain"
 
 # Required for detecting the old Inno Setup version and migrating.
 !define LEGACY_INNO_SETUP_APP_ID "{A44D14A8-326F-45DF-A991-5A0D0EA526DF}"
@@ -662,7 +662,7 @@ _VcrtAlreadyInstalled:
     WriteRegStr SHCTX "${UNINSTALL_KEY}" \
                  "UninstallString" "$\"$InstDir\uninstall.exe$\""
     WriteRegStr SHCTX "${UNINSTALL_KEY}" \
-                 "Publisher" "nullptr"
+                 "Publisher" "Lain"
     WriteRegStr SHCTX "${UNINSTALL_KEY}" \
                  "DisplayVersion" "${LAINCORD_VERSION}${LAINCORD_RC_SUFFIX}"
     WriteRegDWORD SHCTX "${UNINSTALL_KEY}" \
