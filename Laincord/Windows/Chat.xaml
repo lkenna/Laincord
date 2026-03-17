@@ -957,7 +957,17 @@
                                                             </Style.Triggers>
                                                         </Style>
                                                     </StackPanel.Style>
-                                                    <TextBlock FontSize="13" Grid.Row="0" Text="{Binding Path=Author.Name}" Foreground="{Binding Author.Color}" />
+                                                    <TextBlock FontSize="13" Grid.Row="0" Text="{Binding Path=Author.Name}" Foreground="{Binding Author.Color}" ContextMenuOpening="OnAuthorContextMenuOpening">
+                                                        <TextBlock.ContextMenu>
+                                                            <ContextMenu>
+                                                                <MenuItem x:Name="AuthorSendMessageButton" Header="Send Message" Click="AuthorSendMessage_Click" FontWeight="Bold" />
+                                                                <Separator />
+                                                                <MenuItem x:Name="AuthorViewProfileButton" Header="View Profile" Click="AuthorViewProfile_Click" />
+                                                                <Separator x:Name="AuthorDeveloperSeparator" />
+                                                                <MenuItem x:Name="AuthorCopyIdButton" Header="Copy User ID" Click="AuthorCopyId_Click" />
+                                                            </ContextMenu>
+                                                        </TextBlock.ContextMenu>
+                                                    </TextBlock>
                                                     <Image Margin="2,0,0,0" Source="{Binding Author.Image, Converter={StaticResource imageConverter}}" Width="20" Height="20">
                                                         <Image.Style>
                                                             <Style TargetType="Image">

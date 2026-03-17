@@ -1855,6 +1855,15 @@ namespace DSharpPlus.Net
             var ret = JsonConvert.DeserializeObject<DiscordDmChannel>(res.Response);
             ret.Discord = this._discord;
 
+            // Populate Recipients from InternalRecipients since Recipients is [JsonIgnore]
+            if (ret.Recipients == null && ret.InternalRecipients != null)
+            {
+                ret.Recipients = ret.InternalRecipients
+                    .Select(tu => new DiscordUser(tu) { Discord = this._discord })
+                    .ToList()
+                    .AsReadOnly();
+            }
+
             if (this._discord is DiscordClient dc)
                 _ = dc._privateChannels.TryAdd(ret.Id, ret);
 

@@ -928,6 +928,125 @@ namespace Laincord.Windows
             }
         }
 
+        private void OnContactContextMenuOpening(object sender, ContextMenuEventArgs e)
+        {
+            if (sender is not Grid grid)
+                return;
+
+            if (grid.DataContext is not HomeListItemViewModel)
+            {
+                e.Handled = true;
+                return;
+            }
+
+            ContextMenu contextMenu = grid.ContextMenu;
+
+            bool isDeveloperModeEnabled = SettingsManager.Instance.DiscordDeveloperMode;
+
+            foreach (var item in contextMenu.Items)
+            {
+                if (item is FrameworkElement fe && fe.Name == "ContactDeveloperSeparator")
+                    fe.Visibility = isDeveloperModeEnabled ? Visibility.Visible : Visibility.Collapsed;
+                if (item is FrameworkElement fe2 && fe2.Name == "ContactCopyIdButton")
+                    fe2.Visibility = isDeveloperModeEnabled ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
+        private void ContactSendMessage_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not MenuItem menuItem)
+                return;
+
+            var contextMenu = menuItem.Parent as ContextMenu;
+            if (contextMenu?.PlacementTarget is not Grid grid)
+                return;
+
+            if (grid.DataContext is not HomeListItemViewModel item)
+                return;
+
+            // Use the same logic as double-click
+            if (item.DoubleClick != null)
+                item.DoubleClick.Invoke();
+            else
+                OpenChatForContact(item);
+        }
+
+        private async void OpenChatForContact(HomeListItemViewModel item)
+        {
+            // Reuse the double-click logic
+            bool isFriend = ViewModel.Categories.Count >= 2
+                && (ViewModel.Categories[0].Items.Contains(item) || ViewModel.Categories[1].Items.Contains(item));
+
+            ulong chatId = item.Id;
+            if (isFriend)
+            {
+                var dmChannel = Discord.Client.PrivateChannels.Values
+                    .FirstOrDefault(dm => dm.Recipients?.Count == 1 && dm.Recipients[0].Id == item.Id);
+                if (dmChannel != null)
+                    chatId = dmChannel.Id;
+                else
+                {
+                    try
+                    {
+                        var newDm = await Discord.Client.CreateDmChannelAsync(item.Id);
+                        chatId = newDm.Id;
+                    }
+                    catch { return; }
+                }
+            }
+
+            Chat? chat = Application.Current.Windows.OfType<Chat>().FirstOrDefault(x =>
+                x?.ViewModel?.Recipient?.Id == item.Id ||
+                x?.ViewModel?.Recipient?.Id == chatId ||
+                x?.Channel?.Id == chatId ||
+                (x?.Channel?.Guild?.Channels.Values?.Select(c => c.Id)?.Contains(chatId) ?? false));
+            if (chat is null)
+            {
+                chat = new Chat(chatId);
+                chat.Show();
+            }
+            else
+            {
+                chat.Activate();
+            }
+        }
+
+        private async void ContactViewProfile_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not MenuItem menuItem)
+                return;
+
+            var contextMenu = menuItem.Parent as ContextMenu;
+            if (contextMenu?.PlacementTarget is not Grid grid)
+                return;
+
+            if (grid.DataContext is not HomeListItemViewModel item)
+                return;
+
+            try
+            {
+                var profile = await Discord.Client.GetUserProfileAsync(item.Id, true);
+                var profileWindow = new UserProfile(profile.User);
+                profileWindow.Show();
+            }
+            catch { }
+        }
+
+        private void ContactCopyId_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not MenuItem menuItem)
+                return;
+
+            var contextMenu = menuItem.Parent as ContextMenu;
+            if (contextMenu?.PlacementTarget is not Grid grid)
+                return;
+
+            if (grid.DataContext is not HomeListItemViewModel item)
+                return;
+
+            Clipboard.SetText(item.Id.ToString());
+        }
+
         private async void Button_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             var item = (HomeListItemViewModel)((Button)sender).DataContext;

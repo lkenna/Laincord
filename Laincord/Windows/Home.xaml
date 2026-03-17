@@ -609,7 +609,16 @@
                                 <HierarchicalDataTemplate.ItemTemplate>
                                     <DataTemplate>
                                         <Button MouseDoubleClick="Button_MouseDoubleClick" HorizontalContentAlignment="Left" Style="{StaticResource TransparentStyle}">
-                                            <Grid Height="20" PreviewMouseDown="ItemClick">
+                                            <Grid Height="20" PreviewMouseDown="ItemClick" ContextMenuOpening="OnContactContextMenuOpening">
+                                                <Grid.ContextMenu>
+                                                    <ContextMenu>
+                                                        <MenuItem x:Name="ContactSendMessageButton" Header="Send Message" Click="ContactSendMessage_Click" FontWeight="Bold" />
+                                                        <Separator />
+                                                        <MenuItem x:Name="ContactViewProfileButton" Header="View Profile" Click="ContactViewProfile_Click" />
+                                                        <Separator x:Name="ContactDeveloperSeparator" />
+                                                        <MenuItem x:Name="ContactCopyIdButton" Header="Copy User ID" Click="ContactCopyId_Click" />
+                                                    </ContextMenu>
+                                                </Grid.ContextMenu>
                                                 <controls:NineSlice Slice="4,4">
                                                     <controls:NineSlice.Style>
                                                         <Style TargetType="controls:NineSlice">

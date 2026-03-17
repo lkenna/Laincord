@@ -327,8 +327,26 @@ namespace Laincord.Windows
             DiscordUser? recipient = null;
             if (isDM && !isGroupChat)
             {
-                recipient = ((DiscordDmChannel)newChannel).Recipients.FirstOrDefault(x => x.Id != currentUser.Id);
-                if (!_chatService.TryGetCachedUser(recipient?.Id ?? 0, out recipient) || recipient?.BannerColor == null)
+                var dmChannel = (DiscordDmChannel)newChannel;
+                var recipients = dmChannel.Recipients;
+                recipient = recipients?.FirstOrDefault(x => x.Id != currentUser.Id);
+
+                // If recipients is empty (e.g. freshly created DM), try to find the user
+                // from the channel's own recipient IDs or fall back to profile fetch.
+                if (recipient == null && dmChannel.Id != 0)
+                {
+                    // Try to find the other user by looking at all cached users
+                    foreach (var pc in Discord.Client.PrivateChannels.Values)
+                    {
+                        if (pc.Id == dmChannel.Id && pc.Recipients != null)
+                        {
+                            recipient = pc.Recipients.FirstOrDefault(x => x.Id != currentUser.Id);
+                            break;
+                        }
+                    }
+                }
+
+                if (recipient != null && (!_chatService.TryGetCachedUser(recipient.Id, out recipient) || recipient?.BannerColor == null))
                 {
                     // GetUserProfileAsync can fail if the recipient is not friends with you and shares no
                     // mutual servers. We need to fail gracefully in this case.
@@ -362,7 +380,7 @@ namespace Laincord.Windows
 
             if (recipient is not null) ViewModel.Recipient = UserViewModel.FromUser(recipient);
 
-            if (isDM && !isGroupChat)
+            if (isDM && !isGroupChat && ViewModel.Recipient != null)
             {
                 // If we're a one-on-one DM, then we must display the initial presence (as provided from whoever
                 // opened this chat window). The Discord API does not report this information to us, so this hack
@@ -3220,6 +3238,103 @@ namespace Laincord.Windows
             SetReplyTargetAndEnterReplyMode(messageVm);
         }
 
+
+        private void OnAuthorContextMenuOpening(object sender, ContextMenuEventArgs e)
+        {
+            if (sender is not TextBlock textBlock)
+                return;
+
+            ContextMenu contextMenu = textBlock.ContextMenu;
+            if (contextMenu == null)
+                return;
+
+            bool isDeveloperModeEnabled = SettingsManager.Instance.DiscordDeveloperMode;
+
+            foreach (var item in contextMenu.Items)
+            {
+                if (item is FrameworkElement fe && fe.Name == "AuthorDeveloperSeparator")
+                    fe.Visibility = isDeveloperModeEnabled ? Visibility.Visible : Visibility.Collapsed;
+                if (item is FrameworkElement fe2 && fe2.Name == "AuthorCopyIdButton")
+                    fe2.Visibility = isDeveloperModeEnabled ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
+        private MessageViewModel? GetMessageViewModelFromAuthorMenu(object sender)
+        {
+            if (sender is not MenuItem menuItem)
+                return null;
+
+            var contextMenu = menuItem.Parent as ContextMenu;
+            if (contextMenu?.PlacementTarget is not TextBlock textBlock)
+                return null;
+
+            return textBlock.DataContext as MessageViewModel;
+        }
+
+        private async void AuthorSendMessage_Click(object sender, RoutedEventArgs e)
+        {
+            var vm = GetMessageViewModelFromAuthorMenu(sender);
+            if (vm?.Author == null) return;
+
+            var dmChannel = Discord.Client.PrivateChannels.Values
+                .FirstOrDefault(dm => dm.Recipients?.Count == 1 && dm.Recipients[0].Id == vm.Author.Id);
+
+            ulong chatId;
+            if (dmChannel != null)
+            {
+                chatId = dmChannel.Id;
+            }
+            else
+            {
+                try
+                {
+                    var newDm = await Discord.Client.CreateDmChannelAsync(vm.Author.Id);
+                    chatId = newDm.Id;
+                }
+                catch { return; }
+            }
+
+            Chat? chat = Application.Current.Windows.OfType<Chat>().FirstOrDefault(x =>
+                x?.ViewModel?.Recipient?.Id == vm.Author.Id ||
+                x?.Channel?.Id == chatId);
+            if (chat is null)
+            {
+                chat = new Chat(chatId);
+                chat.Show();
+            }
+            else
+            {
+                chat.Activate();
+            }
+        }
+
+        private async void AuthorViewProfile_Click(object sender, RoutedEventArgs e)
+        {
+            var vm = GetMessageViewModelFromAuthorMenu(sender);
+            if (vm?.Author == null) return;
+
+            try
+            {
+                var profile = await Discord.Client.GetUserProfileAsync(vm.Author.Id, true);
+                DiscordMember member = null;
+                if (Channel?.Guild != null)
+                {
+                    try { member = await Channel.Guild.GetMemberAsync(vm.Author.Id); }
+                    catch { }
+                }
+                var profileWindow = new UserProfile(profile.User, member);
+                profileWindow.Show();
+            }
+            catch { }
+        }
+
+        private void AuthorCopyId_Click(object sender, RoutedEventArgs e)
+        {
+            var vm = GetMessageViewModelFromAuthorMenu(sender);
+            if (vm?.Author == null) return;
+
+            Clipboard.SetText(vm.Author.Id.ToString());
+        }
 
         private void ClearMessageSelection()
         {
