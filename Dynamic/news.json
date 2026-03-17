@@ -1,18 +1,10 @@
 [
 	{
-		"date": 1751552418000,
-		"body": "[b][color color=#1D80A6]Laincord v0.2.3[/color][/b]: We spent a long time focusing on improving the performance and stability of the client in this version. Hopefully you'll find things feeling a lot smoother going forward."
+		"date": 1742169600000,
+		"body": "[b][color color=#1D80A6]Laincord v2026.0.1[/color][/b]: Welcome to Laincord! This release adds reactions, an emoji picker with search and server emoji support, emoji autocomplete, and a bunch of bug fixes."
 	},
 	{
-		"date": 1751552418000,
-		"body": "[b]Did you submit an ad in the past?[/b] We are trying to fill out past credits. Due to improper management in the past, we lost credits for all ads submitted prior to September 27th, 2024. If you submitted an ad before this date, please contact us so we can restore credit."
-	},
-	{
-		"date": 1751552418000,
+		"date": 1742169600000,
 		"body" :"[b]Interested in Laincord development?[/b] Laincord is free-and-open-source software which is maintained through community contributions. Please check out [link url=https://github.com/lkenna/Laincord]our GitHub repository[/link] if you'd like to help out. You don't have to be a skilled programmer or anything."
-	},
-	{
-		"date": 1765649921000,
-		"body": "[b]What happened to the Discord server?[/b] [link url=https://github.com/lkenna/Laincord/issues/160#issuecomment-3649680314]See motivations for its deletion here.[/link] We are sorry for the inconvenience. Perhaps tentatively, please submit scenes and ads [link url=https://github.com/lkenna/Laincord/pulls]through GitHub pull requests on the Laincord repository[/link]."
 	}
 ]

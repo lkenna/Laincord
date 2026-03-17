@@ -1,6 +1,8 @@
 # Laincord
 
-A custom client for Discord that resembles Windows Live Messenger 2009.
+A Discord client built to look and feel like Windows Live Messenger 2009, forked from [Aerochat](https://github.com/not-nullptr/Aerochat).
+
+Laincord picks up where Aerochat left off — fixing bugs, filling in missing functionality, and working toward a complete WLM 2009 experience. Along the way, it brings in Discord-native features like reactions, emoji pickers, and full server support that fit naturally into the classic Messenger interface.
 
 ## Download
 
