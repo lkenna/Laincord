@@ -408,6 +408,7 @@ DSharpPlus.Test/config.json
 
 # Docfx
 docs/_site
+DSP/docs/
 Laincord/bin
 Laincord/obj
 Laincord/Laincord.csproj.user
