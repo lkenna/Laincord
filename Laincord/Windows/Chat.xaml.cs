@@ -73,6 +73,40 @@ namespace Laincord.Windows
 
         public ObservableCollection<DiscordUser> TypingUsers { get; } = new();
         public ChatWindowViewModel ViewModel { get; set; } = new ChatWindowViewModel();
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+        private static extern bool FlashWindowEx(ref FLASHWINFO pwfi);
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct FLASHWINFO
+        {
+            public uint cbSize;
+            public IntPtr hwnd;
+            public uint dwFlags;
+            public uint uCount;
+            public uint dwTimeout;
+        }
+
+        private const uint FLASHW_TRAY = 0x00000002;
+        private const uint FLASHW_TIMERNOFG = 0x0000000C;
+
+        public bool FlashOnShow { get; set; }
+
+        public void FlashTaskbar(uint count = 3)
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero) return;
+            var fwi = new FLASHWINFO
+            {
+                cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<FLASHWINFO>(),
+                hwnd = hwnd,
+                dwFlags = FLASHW_TRAY | FLASHW_TIMERNOFG,
+                uCount = count,
+                dwTimeout = 0,
+            };
+            FlashWindowEx(ref fwi);
+        }
         public Chat(ulong id, bool allowDefault = false, PresenceViewModel? initialPresence = null, HomeListItemViewModel? openingItem = null, DiscordClient discordClient = null)
         {
             typingTimer.Elapsed += TypingTimer_Elapsed;
@@ -155,6 +189,8 @@ namespace Laincord.Windows
             _chatService.ChannelUpdated += OnChannelUpdated;
             _chatService.PresenceUpdated += OnPresenceUpdated;
             _chatService.VoiceStateUpdated += OnVoiceStateUpdated;
+            Discord.Client.MessageReactionAdded += OnReactionAdded;
+            Discord.Client.MessageReactionRemoved += OnReactionRemoved;
             ViewModel.UndoEnabled = false;
             ViewModel.RedoEnabled = false;
 
@@ -494,6 +530,7 @@ namespace Laincord.Windows
         {
             try
             {
+                _ = Helpers.FrequentEmojiTracker.LoadFromDiscordAsync();
                 await OnChannelChange();
                 _chatService.TryGetCachedChannel(ChannelId, out DiscordChannel currentChannel);
                 if (currentChannel is null)
@@ -512,7 +549,15 @@ namespace Laincord.Windows
                         RefreshChannelList();
                     }
                 });
-                await Dispatcher.BeginInvoke(Show);
+                await Dispatcher.BeginInvoke(() =>
+                {
+                    Show();
+                    if (FlashOnShow)
+                    {
+                        FlashOnShow = false;
+                        FlashTaskbar();
+                    }
+                });
                 if (!isDM) await _chatService.SyncGuildsAsync(guild).ConfigureAwait(false);
 
                 if (isDM)
@@ -670,6 +715,8 @@ namespace Laincord.Windows
             base.OnClosing(e);
             _chatService.TypingStarted -= OnType;
             _chatService.MessageCreated -= OnMessageCreation;
+            Discord.Client.MessageReactionAdded -= OnReactionAdded;
+            Discord.Client.MessageReactionRemoved -= OnReactionRemoved;
             // dispose of the chat
             ViewModel.Messages.Clear();
             TypingUsers.Clear();
@@ -694,6 +741,10 @@ namespace Laincord.Windows
             bool isNudge = args.Message.Content == "[nudge]";
             DiscordUser user = args.Author;
             if (user is null) return;
+
+            // Flash taskbar for DMs if window isn't focused and message isn't from self
+            if (user.Id != Discord.Client.CurrentUser.Id && args.Channel is DiscordDmChannel)
+                Dispatcher.BeginInvoke(() => { if (!IsActive) FlashTaskbar(); });
 
             var member = args.Guild?.Members.FirstOrDefault(x => x.Key == args.Author.Id).Value;
 
@@ -1084,6 +1135,44 @@ namespace Laincord.Windows
             });
         }
 
+        private async Task OnReactionAdded(DiscordClient sender, DSharpPlus.EventArgs.MessageReactionAddEventArgs args)
+        {
+            if (args.Channel.Id != ChannelId) return;
+            await Dispatcher.InvokeAsync(() =>
+            {
+                var msg = ViewModel.Messages.FirstOrDefault(m => m.Id == args.Message.Id);
+                if (msg == null) return;
+                var existing = msg.Reactions.FirstOrDefault(r => r.Emoji.ToString() == args.Emoji.ToString());
+                if (existing != null)
+                {
+                    existing.Count++;
+                    if (args.User.Id == Discord.Client.CurrentUser.Id)
+                        existing.IsMe = true;
+                }
+                else
+                {
+                    msg.Reactions.Add(ReactionViewModel.FromDiscordEmoji(args.Emoji, 1, args.User.Id == Discord.Client.CurrentUser.Id, msg.MessageEntity));
+                }
+            });
+        }
+
+        private async Task OnReactionRemoved(DiscordClient sender, DSharpPlus.EventArgs.MessageReactionRemoveEventArgs args)
+        {
+            if (args.Channel.Id != ChannelId) return;
+            await Dispatcher.InvokeAsync(() =>
+            {
+                var msg = ViewModel.Messages.FirstOrDefault(m => m.Id == args.Message.Id);
+                if (msg == null) return;
+                var existing = msg.Reactions.FirstOrDefault(r => r.Emoji.ToString() == args.Emoji.ToString());
+                if (existing == null) return;
+                if (args.User.Id == Discord.Client.CurrentUser.Id)
+                    existing.IsMe = false;
+                existing.Count--;
+                if (existing.Count <= 0)
+                    msg.Reactions.Remove(existing);
+            });
+        }
+
         private async Task OnMessageDeleted(DiscordClient sender, DSharpPlus.EventArgs.MessageDeleteEventArgs args)
         {
             _ = Dispatcher.BeginInvoke(() =>
@@ -1146,6 +1235,8 @@ namespace Laincord.Windows
             _chatService.ChannelCreated -= OnChannelCreated;
             _chatService.ChannelDeleted -= OnChannelDeleted;
             _chatService.ChannelUpdated -= OnChannelUpdated;
+            Discord.Client.MessageReactionAdded -= OnReactionAdded;
+            Discord.Client.MessageReactionRemoved -= OnReactionRemoved;
             _chatService.PresenceUpdated -= OnPresenceUpdated;
             _chatService.VoiceStateUpdated -= OnVoiceStateUpdated;
 
@@ -1491,6 +1582,37 @@ namespace Laincord.Windows
                 }
             }
 
+            if (MentionAutoCompletePopup.IsOpen)
+            {
+                switch (e.Key)
+                {
+                    case Key.Down:
+                        if (MentionAutoCompleteList.SelectedIndex < MentionAutoCompleteList.Items.Count - 1)
+                            MentionAutoCompleteList.SelectedIndex++;
+                        MentionAutoCompleteList.ScrollIntoView(MentionAutoCompleteList.SelectedItem);
+                        e.Handled = true;
+                        return;
+                    case Key.Up:
+                        if (MentionAutoCompleteList.SelectedIndex > 0)
+                            MentionAutoCompleteList.SelectedIndex--;
+                        MentionAutoCompleteList.ScrollIntoView(MentionAutoCompleteList.SelectedItem);
+                        e.Handled = true;
+                        return;
+                    case Key.Tab:
+                    case Key.Enter:
+                        if (MentionAutoCompleteList.SelectedItem != null)
+                        {
+                            InsertAutoCompleteMention((MentionAutoCompleteItem)MentionAutoCompleteList.SelectedItem);
+                            e.Handled = true;
+                        }
+                        return;
+                    case Key.Escape:
+                        MentionAutoCompletePopup.IsOpen = false;
+                        e.Handled = true;
+                        return;
+                }
+            }
+
             if (e.Key == Key.Enter && Keyboard.Modifiers != ModifierKeys.Shift)
             {
                 e.Handled = true;
@@ -1729,17 +1851,25 @@ namespace Laincord.Windows
 
         private void OpenEmojiFlyout(object sender, MouseButtonEventArgs e)
         {
+            EmojiFlyout.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
+            EmojiFlyout.PlacementTarget = EmojiButtonGrid;
             EmojiFlyout.IsOpen = true;
             if (_emojiTabs == null)
                 _emojiTabs = BuildEmojiTabList();
             BuildCategoryTabsUI();
-            if (EmojiWrapPanel.Children.Count == 0)
-                PopulateEmojiGrid(0);
+            int defaultTab = Helpers.FrequentEmojiTracker.HasAny() ? 0 : 1;
+            UpdateCategoryHighlight(defaultTab);
+            PopulateEmojiGrid(defaultTab);
         }
+
+        private const string FrequentlyUsedTabName = "Frequently Used";
 
         private static List<EmojiTab> BuildEmojiTabList()
         {
             var tabs = new List<EmojiTab>();
+
+            // Add "Frequently Used" tab first (clock emoji icon)
+            tabs.Add(new EmojiTab(FrequentlyUsedTabName, Helpers.TwemojiHelper.GetUrl("\U0001F552"), false));
 
             for (int i = 0; i < EmojiCategories.Categories.Length; i++)
             {
@@ -1829,7 +1959,11 @@ namespace Laincord.Windows
             EmojiWrapPanel.Children.Clear();
             var tab = _emojiTabs[categoryIndex];
 
-            if (tab.IsGuild)
+            if (tab.Name == FrequentlyUsedTabName)
+            {
+                PopulateFrequentEmoji();
+            }
+            else if (tab.IsGuild)
             {
                 PopulateGuildEmoji(tab.GuildId);
             }
@@ -1841,6 +1975,52 @@ namespace Laincord.Windows
                 {
                     foreach (var (name, unicode) in cat.Emojis)
                         AddEmojiToPanel(name, unicode, cat.Name == "Custom");
+                }
+            }
+        }
+
+        private void PopulateFrequentEmoji()
+        {
+            var frequent = Helpers.FrequentEmojiTracker.GetFrequent();
+            if (frequent.Count == 0) return;
+
+            // Build a lookup of all known emoji: name -> (unicode, isCustom, guildEmojiUrl)
+            foreach (var emojiName in frequent)
+            {
+                // Check custom WLM emoji
+                if (EmojiDictionary.Map.ContainsKey(emojiName))
+                {
+                    AddEmojiToPanel(emojiName, null, true);
+                    continue;
+                }
+
+                // Check guild emoji
+                bool foundGuild = false;
+                if (Discord.Client?.Guilds != null)
+                {
+                    foreach (var guildKvp in Discord.Client.Guilds)
+                    {
+                        if (guildKvp.Value.Emojis == null) continue;
+                        var match = guildKvp.Value.Emojis.Values.FirstOrDefault(e => e.Name == emojiName);
+                        if (match != null)
+                        {
+                            AddGuildEmojiToPanel(match);
+                            foundGuild = true;
+                            break;
+                        }
+                    }
+                }
+                if (foundGuild) continue;
+
+                // Check unicode emoji
+                foreach (var cat in EmojiCategories.Categories)
+                {
+                    var match = cat.Emojis.FirstOrDefault(e => e.DiscordName == emojiName);
+                    if (match.DiscordName != null)
+                    {
+                        AddEmojiToPanel(match.DiscordName, match.Unicode, false);
+                        break;
+                    }
                 }
             }
         }
@@ -1977,6 +2157,31 @@ namespace Laincord.Windows
         {
             Image imgInside = ((Border)sender).Child as Image;
             if (imgInside == null) return;
+
+            string emojiName = imgInside.Tag?.ToString();
+            if (emojiName != null)
+                Helpers.FrequentEmojiTracker.Track(emojiName);
+
+            // If in reaction mode, add reaction to the target message
+            if (_reactionTargetMessage != null)
+            {
+                var msg = _reactionTargetMessage;
+                _reactionTargetMessage = null;
+                EmojiFlyout.IsOpen = false;
+                if (emojiName != null)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var emoji = DiscordEmoji.FromName(Discord.Client, $":{emojiName}:");
+                            await msg.MessageEntity.CreateReactionAsync(emoji);
+                        }
+                        catch { }
+                    });
+                }
+                return;
+            }
 
             Image newImg = new Image
             {
@@ -2181,6 +2386,208 @@ namespace Laincord.Windows
                 InsertAutoCompleteEmoji(item);
         }
 
+        // --- Mention (@) autocomplete ---
+
+        private class MentionAutoCompleteItem
+        {
+            public string DisplayName { get; set; }
+            public string AvatarUrl { get; set; }
+            public string InsertText { get; set; } // e.g. "<@123>" or "<@&456>"
+            public System.Windows.Media.Brush DisplayColor { get; set; } = System.Windows.Media.Brushes.Black;
+            public bool IsRole { get; set; }
+        }
+
+        private void UpdateMentionAutoComplete()
+        {
+            string text = GetTextBeforeCaret();
+            if (text == null)
+            {
+                MentionAutoCompletePopup.IsOpen = false;
+                return;
+            }
+
+            int atIdx = text.LastIndexOf('@');
+            if (atIdx < 0 || atIdx == text.Length - 1)
+            {
+                MentionAutoCompletePopup.IsOpen = false;
+                return;
+            }
+
+            // Make sure the @ isn't inside a word (should be start of line or after space)
+            if (atIdx > 0 && text[atIdx - 1] != ' ')
+            {
+                MentionAutoCompletePopup.IsOpen = false;
+                return;
+            }
+
+            string partial = text.Substring(atIdx + 1);
+            if (partial.Length < 1 || partial.Contains('<') || partial.Contains('>'))
+            {
+                MentionAutoCompletePopup.IsOpen = false;
+                return;
+            }
+
+            string lower = partial.ToLowerInvariant();
+            var results = new List<MentionAutoCompleteItem>();
+            int maxResults = 10;
+
+            var guild = Channel?.Guild;
+            if (guild != null)
+            {
+                // Search roles
+                if (guild.Roles != null)
+                {
+                    foreach (var role in guild.Roles.Values)
+                    {
+                        if (results.Count >= maxResults) break;
+                        if (role.Name == "@everyone" && !lower.StartsWith("e")) continue;
+                        if (!role.Name.ToLowerInvariant().Contains(lower)) continue;
+                        var colorBrush = role.Color.Value != 0
+                            ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(
+                                (byte)((role.Color.Value >> 16) & 0xFF),
+                                (byte)((role.Color.Value >> 8) & 0xFF),
+                                (byte)(role.Color.Value & 0xFF)))
+                            : System.Windows.Media.Brushes.Gray;
+                        results.Add(new MentionAutoCompleteItem
+                        {
+                            DisplayName = $"@{role.Name}",
+                            AvatarUrl = null,
+                            InsertText = $"<@&{role.Id}>",
+                            DisplayColor = colorBrush,
+                            IsRole = true,
+                        });
+                    }
+                }
+
+                // Search members
+                if (guild.Members != null)
+                {
+                    foreach (var member in guild.Members.Values)
+                    {
+                        if (results.Count >= maxResults) break;
+                        string displayName = member.DisplayName ?? member.Username;
+                        string username = member.Username ?? "";
+                        if (!displayName.ToLowerInvariant().Contains(lower) && !username.ToLowerInvariant().Contains(lower))
+                            continue;
+                        results.Add(new MentionAutoCompleteItem
+                        {
+                            DisplayName = $"@{displayName}",
+                            AvatarUrl = member.AvatarUrl ?? member.DefaultAvatarUrl,
+                            InsertText = $"<@{member.Id}>",
+                        });
+                    }
+                }
+            }
+            else if (Channel is DiscordDmChannel dmChannel)
+            {
+                // DM — search recipients
+                if (dmChannel.Recipients != null)
+                {
+                    foreach (var user in dmChannel.Recipients)
+                    {
+                        if (results.Count >= maxResults) break;
+                        string displayName = user.DisplayName ?? user.Username;
+                        string username = user.Username ?? "";
+                        if (!displayName.ToLowerInvariant().Contains(lower) && !username.ToLowerInvariant().Contains(lower))
+                            continue;
+                        results.Add(new MentionAutoCompleteItem
+                        {
+                            DisplayName = $"@{displayName}",
+                            AvatarUrl = user.AvatarUrl ?? user.DefaultAvatarUrl,
+                            InsertText = $"<@{user.Id}>",
+                        });
+                    }
+                }
+            }
+
+            if (results.Count == 0)
+            {
+                MentionAutoCompletePopup.IsOpen = false;
+                return;
+            }
+
+            MentionAutoCompleteList.ItemsSource = results;
+            MentionAutoCompleteList.SelectedIndex = 0;
+            MentionAutoCompletePopup.IsOpen = true;
+        }
+
+        private void InsertAutoCompleteMention(MentionAutoCompleteItem item)
+        {
+            MentionAutoCompletePopup.IsOpen = false;
+
+            string text = GetTextBeforeCaret();
+            if (text == null) return;
+            int atIdx = text.LastIndexOf('@');
+            if (atIdx < 0) return;
+            int charsToDelete = text.Length - atIdx;
+
+            var caretPos = MessageTextBox.CaretPosition;
+            var start = caretPos.GetPositionAtOffset(-charsToDelete);
+            if (start != null)
+            {
+                new TextRange(start, caretPos).Text = "";
+            }
+
+            // Insert a styled mention chip that displays @Name but sends <@id>
+            var mentionBlock = new TextBlock
+            {
+                Text = item.DisplayName,
+                Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(59, 130, 246)),
+                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(30, 59, 130, 246)),
+                Padding = new Thickness(2, 0, 2, 0),
+                FontSize = 13,
+                VerticalAlignment = System.Windows.VerticalAlignment.Center,
+            };
+            var container = new InlineUIContainer(mentionBlock);
+            container.Tag = $"__mention__{item.InsertText}";
+
+            Paragraph paragraph = MessageTextBox.Document.Blocks.LastBlock as Paragraph;
+            if (paragraph == null)
+            {
+                paragraph = new Paragraph();
+                MessageTextBox.Document.Blocks.Add(paragraph);
+            }
+            paragraph.Inlines.Add(container);
+            // Add a trailing space so the user can keep typing
+            paragraph.Inlines.Add(new Run(" "));
+            MessageTextBox.CaretPosition = paragraph.ContentEnd;
+            MessageTextBox.Focus();
+        }
+
+        private void MentionAutoCompleteList_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (MentionAutoCompleteList.SelectedItem is MentionAutoCompleteItem item)
+                InsertAutoCompleteMention(item);
+        }
+
+        private MessageViewModel _reactionTargetMessage;
+
+        private void OnAddReactionClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is MenuItem menuItem && menuItem.Tag is MessageViewModel msg)
+            {
+                _reactionTargetMessage = msg;
+
+                // Position the popup near the mouse instead of the emoji button
+                var mousePos = System.Windows.Input.Mouse.GetPosition(this);
+                EmojiFlyout.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+
+                EmojiFlyout.IsOpen = true;
+                if (_emojiTabs == null)
+                    _emojiTabs = BuildEmojiTabList();
+                BuildCategoryTabsUI();
+                int defaultTab = Helpers.FrequentEmojiTracker.HasAny() ? 0 : 1;
+                UpdateCategoryHighlight(defaultTab);
+                PopulateEmojiGrid(defaultTab);
+            }
+        }
+
+        private void Reaction_Click(object sender, MouseButtonEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is ReactionViewModel reaction)
+                reaction.ToggleReaction();
+        }
+
         private void JumpToReply(object sender, MouseButtonEventArgs e)
         {
             var messageVm = (sender as Panel)?.DataContext as MessageViewModel;
@@ -2338,11 +2745,18 @@ namespace Laincord.Windows
                         case Run: // character
                             sb.Append(((Run)inline).Text);
                             break;
-                        case InlineUIContainer: // emoticon
-                            string EmojiNameDiscord = ":" + ((InlineUIContainer)inline).Tag + ":";
-                            DiscordEmoji emoji = DiscordEmoji.FromName(Discord.Client, EmojiNameDiscord);
-                            TextPointer caret = MessageTextBox.CaretPosition;
-                            sb.Append(emoji.ToString());
+                        case InlineUIContainer: // emoticon or mention
+                            string tag = ((InlineUIContainer)inline).Tag?.ToString();
+                            if (tag != null && tag.StartsWith("__mention__"))
+                            {
+                                sb.Append(tag.Substring("__mention__".Length));
+                            }
+                            else
+                            {
+                                string EmojiNameDiscord = ":" + tag + ":";
+                                DiscordEmoji emoji = DiscordEmoji.FromName(Discord.Client, EmojiNameDiscord);
+                                sb.Append(emoji.ToString());
+                            }
                             break;
                     }
                 }
@@ -2629,6 +3043,8 @@ namespace Laincord.Windows
             }
 
             UpdateEmojiAutoComplete();
+            if (!EmojiAutoCompletePopup.IsOpen)
+                UpdateMentionAutoComplete();
         }
 
         private void OnMessageContextMenuOpening(object senderRaw, ContextMenuEventArgs e)
@@ -2648,8 +3064,7 @@ namespace Laincord.Windows
             ContextMenu contextMenu = grid.ContextMenu;
             contextMenu.DataContext = vm;
 
-            // TODO(isabella): Implement reactions.
-            bool isReactionAllowed = false && ViewModel.Channel.CanAddReactions && !vm.Ephemeral;
+            bool isReactionAllowed = !vm.Ephemeral;
 
             MenuItem addReactionsButton = (MenuItem)FindContextMenuItemName(contextMenu, "AddReactionButton");
             addReactionsButton.Visibility = isReactionAllowed
@@ -2663,7 +3078,9 @@ namespace Laincord.Windows
 
             if (isReactionAllowed)
             {
-                // Build reactions context menu:
+                addReactionsButton.Click -= OnAddReactionClick;
+                addReactionsButton.Click += OnAddReactionClick;
+                addReactionsButton.Tag = vm;
             }
 
             bool isOwnMessage = vm.Author.Id == _chatService.GetCurrentUser().Result.Id;

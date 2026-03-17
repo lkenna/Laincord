@@ -68,12 +68,10 @@ namespace Laincord
 
             await Discord.Client.UpdateStatusAsync(userStatus: status);
 
-
-
             if (updateUserSettingsProto && DiscordUserSettingsManager.Instance.UserSettingsProto != null && DiscordUserSettingsManager.Instance.UserSettingsProto.Status != null)
             {
                 DiscordUserSettingsManager.Instance.UserSettingsProto.Status.Status = status.ToDiscordString();
-                _ = DiscordUserSettingsManager.Instance.UpdateRemote();
+                await DiscordUserSettingsManager.Instance.UpdateRemote();
             } // NullReferenceException crash fixed: UserSettingsProto was not null but the Status field was. - OmegaAOL
 
 
@@ -581,9 +579,7 @@ namespace Laincord
                             {
                                 if (wnd is Chat existingChat && e.Channel?.Id == existingChat.Channel?.Id)
                                 {
-                                    existingChat.Show();
-                                    existingChat.WindowState = WindowState.Normal;
-                                    existingChat.Activate();
+                                    existingChat.FlashTaskbar();
                                     return;
                                 }
                             }
@@ -592,7 +588,7 @@ namespace Laincord
                             {
                                 Home? homeWindow = Current.Windows.OfType<Home>().FirstOrDefault();
                                 PresenceViewModel? presenceVm = homeWindow?.FindPresenceForUserId(e.Channel.Id);
-                                new Chat(e.Channel.Id, false, presenceVm);
+                                new Chat(e.Channel.Id, false, presenceVm) { FlashOnShow = true };
                             }
                         });
                     }

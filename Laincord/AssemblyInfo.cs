@@ -20,7 +20,7 @@ using System.Windows;
 
 static class AssemblyInfo
 {
-    public const string Version = "0.3.0";
+    public const string Version = "2026.0.1";
 
 #if LAINCORD_RC
     /// <summary>

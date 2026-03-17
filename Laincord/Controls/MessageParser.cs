@@ -18,7 +18,10 @@ namespace Laincord.Controls
     {
         public static Dictionary<string, BitmapSource> EmojiCache = new();
         private static readonly Regex MarkdownRegex = new(
-            @"(\*\*)(.+?)\1|(__)(.+?)\3|(\*|_)(.+?)\5|~~(.+?)~~|(?m)^(?:\*|-)\s+(.+)|(?m)^>\s+(.+)|(?m)^(#{1,6})\s+(.+)",
+            @"```(?:\w*\n)?([\s\S]*?)```|`([^`\n]+)`|\|\|(.+?)\|\||(\*\*)(.+?)\4|(__)(.+?)\6|(\*|_)(.+?)\8|~~(.+?)~~|(?m)^(?:\*|-)\s+(.+)|(?m)^>\s+(.+)|(?m)^(#{1,6})\s+(.+)",
+            RegexOptions.Compiled);
+        private static readonly Regex DiscordTokenRegex = new(
+            @"(<a?:[^:]+:\d+>|<[@#][&!]?\d+>)",
             RegexOptions.Compiled);
 
         public static readonly DependencyProperty MessageProperty =
@@ -64,7 +67,9 @@ namespace Laincord.Controls
                     textBlock.Foreground = new SolidColorBrush(Color.FromRgb(73, 164, 218));
                 }
             }
-            var words = Message.Content.Split(' ');
+            // Ensure spaces around Discord tokens so "boss<:devious:123>" splits properly
+            var normalizedContent = DiscordTokenRegex.Replace(Message.Content, " $1 ");
+            var words = normalizedContent.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             foreach (var word in words)
             {
                 string text = word;
@@ -91,6 +96,13 @@ namespace Laincord.Controls
                                             id = id.Replace("&", "");
                                             if (!ulong.TryParse(id, out ulong parsedId)) break;
                                             var role = Message.MentionedRoles?.FirstOrDefault(x => x?.Id == parsedId);
+                                            // Fall back to guild role list
+                                            if (role == null && Message?.Channel?.Guild?.Roles != null)
+                                                Message.Channel.Guild.Roles.TryGetValue(parsedId, out role);
+                                            if (role == null && Hoarder.Discord.Client?.Guilds != null)
+                                                foreach (var g in Hoarder.Discord.Client.Guilds.Values)
+                                                    if (g.Roles != null && g.Roles.TryGetValue(parsedId, out role))
+                                                        break;
                                             if (role == null)
                                             {
                                                 text = "@unknown-role";
@@ -104,7 +116,15 @@ namespace Laincord.Controls
                                     default:
                                         {
                                             if (!ulong.TryParse(id, out ulong parsedId)) break;
-                                            var user = Message.MentionedUsers?.FirstOrDefault(x => x?.Id == parsedId);
+                                            DiscordUser user = Message.MentionedUsers?.FirstOrDefault(x => x?.Id == parsedId);
+                                            // Fall back to guild member list
+                                            if (user == null && Message?.Channel?.Guild?.Members != null &&
+                                                Message.Channel.Guild.Members.TryGetValue(parsedId, out var localMember))
+                                                user = localMember;
+                                            if (user == null && Hoarder.Discord.Client?.Guilds != null)
+                                                foreach (var g in Hoarder.Discord.Client.Guilds.Values)
+                                                    if (g.Members != null && g.Members.TryGetValue(parsedId, out var m))
+                                                        { user = m; break; }
                                             if (user == null)
                                             {
                                                 text = "@unknown-user";
@@ -132,9 +152,12 @@ namespace Laincord.Controls
                                     associatedObject = channel;
                                     break;
                                 }
+                            case 'a':
                             case ':':
                                 {
-                                    string[] emojiParts = id.Split(":");
+                                    bool isAnimated = id.StartsWith("a:");
+                                    string emojiStr = isAnimated ? id.Substring(1) : id;
+                                    string[] emojiParts = emojiStr.Split(":");
 
                                     if (emojiParts.Length != 3)
                                     {
@@ -168,7 +191,8 @@ namespace Laincord.Controls
                                         }
                                     }
                                     // Fall back to CDN URL if not found in any guild cache
-                                    emojiUrl ??= $"https://cdn.discordapp.com/emojis/{emojiId}.png";
+                                    string ext = isAnimated ? "gif" : "png";
+                                    emojiUrl ??= $"https://cdn.discordapp.com/emojis/{emojiId}.{ext}";
 
                                     InlineUIContainer inlineContainer = new();
                                     Image emojiImage = new();
@@ -359,59 +383,88 @@ namespace Laincord.Controls
                         if (m.Index > pos)
                             inlines.Add(new Run(input.Substring(pos, m.Index - pos)));
 
-                        if (m.Groups[1].Success) // bold 
+                        if (m.Groups[1].Success) // code block
+                        {
+                            var run = new Run(m.Groups[1].Value.TrimEnd());
+                            run.FontFamily = new FontFamily("Consolas");
+                            run.Background = new SolidColorBrush(Color.FromRgb(242, 243, 245));
+                            run.Foreground = Brushes.Black;
+                            inlines.Add(new LineBreak());
+                            inlines.Add(run);
+                            inlines.Add(new LineBreak());
+                        }
+                        else if (m.Groups[2].Success) // inline code
                         {
                             var run = new Run(m.Groups[2].Value);
+                            run.FontFamily = new FontFamily("Consolas");
+                            run.Background = new SolidColorBrush(Color.FromRgb(242, 243, 245));
+                            run.Foreground = Brushes.Black;
+                            inlines.Add(run);
+                        }
+                        else if (m.Groups[3].Success) // spoiler
+                        {
+                            var spoilerRun = new Run(m.Groups[3].Value);
+                            spoilerRun.Background = new SolidColorBrush(Color.FromRgb(70, 70, 70));
+                            spoilerRun.Foreground = new SolidColorBrush(Color.FromRgb(70, 70, 70));
+                            spoilerRun.Cursor = Cursors.Hand;
+                            spoilerRun.MouseLeftButtonDown += (s, e) =>
+                            {
+                                var r = (Run)s;
+                                r.Foreground = Brushes.White;
+                            };
+                            inlines.Add(spoilerRun);
+                        }
+                        else if (m.Groups[4].Success) // bold
+                        {
+                            var run = new Run(m.Groups[5].Value);
                             run.FontWeight = FontWeights.Bold;
                             inlines.Add(run);
                         }
-                        else if (m.Groups[3].Success) // underline 
-                        { 
-                            var run = new Run(m.Groups[4].Value);
+                        else if (m.Groups[6].Success) // underline
+                        {
+                            var run = new Run(m.Groups[7].Value);
                             run.TextDecorations = TextDecorations.Underline;
                             inlines.Add(run);
                         }
-                        else if (m.Groups[5].Success) // italic 
+                        else if (m.Groups[8].Success) // italic
                         {
-                            var run = new Run(m.Groups[6].Value);
+                            var run = new Run(m.Groups[9].Value);
                             run.FontStyle = FontStyles.Italic;
                             inlines.Add(run);
                         }
-                        else if (m.Groups[7].Success) // strikethrough
+                        else if (m.Groups[10].Success) // strikethrough
                         {
-                            var span = new Span(new Run(m.Groups[7].Value));
+                            var span = new Span(new Run(m.Groups[10].Value));
                             span.TextDecorations = TextDecorations.Strikethrough;
                             inlines.Add(span);
                         }
-                        else if (m.Groups[8].Success) // list
+                        else if (m.Groups[11].Success) // list
                         {
-                            var run = new Run(" " + m.Groups[8].Value);
+                            var run = new Run(" " + m.Groups[11].Value);
                             inlines.Add(run);
                         }
-                        else if (m.Groups[9].Success) // quote
+                        else if (m.Groups[12].Success) // quote
                         {
-                            var run = new Run("" + m.Groups[9].Value.Trim() + "");
+                            var run = new Run("" + m.Groups[12].Value.Trim() + "");
                             run.FontStyle = FontStyles.Italic;
                             run.Foreground = Brushes.DimGray;
                             inlines.Add(run);
                         }
-
-                        else if (m.Groups[10].Success) // header
+                        else if (m.Groups[13].Success) // header
                         {
-                            var headerText = m.Groups[11].Value.Trim();
+                            var headerText = m.Groups[14].Value.Trim();
                             var run = new Run(headerText);
-                            switch (m.Groups[10].Value.Length) // number of # 
+                            switch (m.Groups[13].Value.Length)
                             {
-                                case 1: run.FontSize = 24; break; // H1
-                                case 2: run.FontSize = 20; break; // H2
-                                case 3: run.FontSize = 18; break; // H3
-                                default: run.FontSize = 16; break; // H4-H6
+                                case 1: run.FontSize = 24; break;
+                                case 2: run.FontSize = 20; break;
+                                case 3: run.FontSize = 18; break;
+                                default: run.FontSize = 16; break;
                             }
                             run.FontWeight = FontWeights.Bold;
                             inlines.Add(run);
                             inlines.Add(new LineBreak());
                         }
-
                         pos = m.Index + m.Length;
                     }
 

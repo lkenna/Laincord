@@ -185,14 +185,15 @@ namespace Laincord.Windows
             {
                 newsTimer.Elapsed += NewsTimer_Elapsed;
                 newsTimer.Start();
-                ViewModel.Buttons.Add(new()
-                {
-                    Image="/Laincord;component/Resources/Icons/DiscordIcon.png",
-                    Click = () =>
-                    {
-                        Process.Start(new ProcessStartInfo("https://discord.gg/Jcg84hmSqM") { UseShellExecute = true });
-                    }
-                });
+                // TODO: bring back when we have a new invite link
+                // ViewModel.Buttons.Add(new()
+                // {
+                //     Image="/Laincord;component/Resources/Icons/DiscordIcon.png",
+                //     Click = () =>
+                //     {
+                //         Process.Start(new ProcessStartInfo("https://discord.gg/Jcg84hmSqM") { UseShellExecute = true });
+                //     }
+                // });
                 ViewModel.Categories.Add(new HomeListViewCategory
                 {
                     Name = "Online",

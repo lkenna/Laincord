@@ -461,6 +461,11 @@ namespace DSharpPlus
         public async Task UpdateUserSettingsProto(string base64Proto) => await ApiClient.SendSettingsProto(base64Proto).ConfigureAwait(false);
 
         /// <summary>
+        /// Gets the frecency user settings proto (type 2) as base64.
+        /// </summary>
+        public async Task<string> GetFrecencySettingsProto() => await ApiClient.GetFrecencySettingsProto().ConfigureAwait(false);
+
+        /// <summary>
         /// Gets a user
         /// </summary>
         /// <param name="userId">ID of the user</param>

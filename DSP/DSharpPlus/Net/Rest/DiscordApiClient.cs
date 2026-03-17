@@ -4144,6 +4144,17 @@ namespace DSharpPlus.Net
             await this.DoRequestAsync(this._discord, bucket, url, RestRequestMethod.PATCH, route, payload: DiscordJson.SerializeObject(pld)).ConfigureAwait(false);
         }
 
+        public async Task<string> GetFrecencySettingsProto()
+        {
+            var route = $"{Endpoints.USERS}{Endpoints.ME}{Endpoints.SETTINGS_PROTO}/2";
+            var bucket = this._rest.GetBucket(RestRequestMethod.GET, route, new { }, out var path);
+
+            var url = Utilities.GetApiUriFor(path);
+            var res = await this.DoRequestAsync(this._discord, bucket, url, RestRequestMethod.GET, route).ConfigureAwait(false);
+            var json = JObject.Parse(res.Response);
+            return json["settings"]?.ToString() ?? "";
+        }
+
         internal void UpdateConfiguration(DiscordConfiguration configuration)
             => this._rest = new RestClient(configuration, this._discord.Logger, this._discord.HandleCaptchaAsync);
     }

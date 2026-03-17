@@ -12,6 +12,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Laincord.ViewModels
@@ -107,6 +108,49 @@ namespace Laincord.ViewModels
             set => SetProperty(ref _messageEntity, value);
         }
 
+        private static readonly Regex MentionRegex = new(@"<(@!?|@&|#|a?:[^:]+:)(\d+)>", RegexOptions.Compiled);
+
+        /// <summary>Resolves Discord mentions/emoji to plain text for reply previews.</summary>
+        public string DisplayMessage => MentionRegex.Replace(Message ?? "", match =>
+        {
+            string prefix = match.Groups[1].Value;
+            if (!ulong.TryParse(match.Groups[2].Value, out ulong id)) return match.Value;
+
+            if (prefix == "#")
+            {
+                if (Discord.Client?.Guilds != null)
+                    foreach (var g in Discord.Client.Guilds.Values)
+                        if (g.Channels != null && g.Channels.TryGetValue(id, out var ch))
+                            return $"#{ch.Name}";
+                return "#unknown-channel";
+            }
+            if (prefix == "@&")
+            {
+                if (Discord.Client?.Guilds != null)
+                    foreach (var g in Discord.Client.Guilds.Values)
+                        if (g.Roles != null && g.Roles.TryGetValue(id, out var role))
+                            return $"@{role.Name}";
+                return "@unknown-role";
+            }
+            if (prefix.StartsWith("@"))
+            {
+                var user = MessageEntity?.MentionedUsers?.FirstOrDefault(u => u?.Id == id);
+                if (user != null) return $"@{user.DisplayName}";
+                if (Discord.Client?.Guilds != null)
+                    foreach (var g in Discord.Client.Guilds.Values)
+                        if (g.Members != null && g.Members.TryGetValue(id, out var m))
+                            return $"@{m.DisplayName}";
+                return "@unknown-user";
+            }
+            // Emoji — just show :name:
+            if (prefix.Contains(':'))
+            {
+                var name = prefix.TrimStart('a').Trim(':');
+                return $":{name}:";
+            }
+            return match.Value;
+        });
+
         private string? _timestampString = null;
         private string? _lastMessageReceivedString = null;
 
@@ -176,6 +220,7 @@ namespace Laincord.ViewModels
 
         public ObservableCollection<AttachmentViewModel> Attachments { get; } = new();
         public ObservableCollection<EmbedViewModel> Embeds { get; } = new();
+        public ObservableCollection<ReactionViewModel> Reactions { get; } = new();
 
         public static MessageViewModel FromMessage(DiscordMessage message, DiscordMember? member = null, bool isReply = false)
         {
@@ -252,6 +297,14 @@ namespace Laincord.ViewModels
             foreach (var attachment in message.Attachments)
             {
                 vm.Attachments.Add(AttachmentViewModel.FromAttachment(attachment));
+            }
+
+            if (message.Reactions != null)
+            {
+                foreach (var reaction in message.Reactions)
+                {
+                    vm.Reactions.Add(ReactionViewModel.FromReaction(reaction, message));
+                }
             }
 
             if (vm.IsReply)
