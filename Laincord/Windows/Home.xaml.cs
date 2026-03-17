@@ -41,7 +41,7 @@ namespace Laincord.Windows
         /// <summary>
         /// The base URL used for dynamic notices and news content.
         /// </summary>
-        const string DYNAMIC_BASE_URL = "https://raw.githubusercontent.com/not-nullptr/Laincord/refs/heads/main/Dynamic/";
+        const string DYNAMIC_BASE_URL = "https://raw.githubusercontent.com/lkenna/Laincord/refs/heads/main/Dynamic/";
 
         /// <summary>
         /// The URL for remote dynamic news content shown along the bottom of the client.
@@ -464,7 +464,7 @@ namespace Laincord.Windows
             HttpResponseMessage response;
             try
             {
-                response = await httpClient.GetAsync("https://api.github.com/repos/not-nullptr/Laincord/tags");
+                response = await httpClient.GetAsync("https://api.github.com/repos/lkenna/Laincord/tags");
             }
             catch (Exception)
             {
@@ -534,7 +534,7 @@ namespace Laincord.Windows
                         HttpResponseMessage releaseResponse;
                         try
                         {
-                            releaseResponse = await httpClient.GetAsync($"https://api.github.com/repos/not-nullptr/Laincord/releases/tags/{latestTag}");
+                            releaseResponse = await httpClient.GetAsync($"https://api.github.com/repos/lkenna/Laincord/releases/tags/{latestTag}");
                         }
                         catch (Exception)
                         {
@@ -618,7 +618,7 @@ namespace Laincord.Windows
                 failureDialog.ShowDialog();
 
                 Shell32.ShellExecute(HWND.NULL, "open",
-                    $"https://github.com/not-nullptr/Laincord/releases/tag/{latestTag}", null, null,
+                    $"https://github.com/lkenna/Laincord/releases/tag/{latestTag}", null, null,
                     ShowWindowCommand.SW_SHOWNORMAL
                 );
             });

@@ -9,10 +9,10 @@
 	},
 	{
 		"date": 1751552418000,
-		"body" :"[b]Interested in Laincord development?[/b] Laincord is free-and-open-source software which is maintained through community contributions. Please check out [link url=https://github.com/not-nullptr/Laincord]our GitHub repository[/link] if you'd like to help out. You don't have to be a skilled programmer or anything."
+		"body" :"[b]Interested in Laincord development?[/b] Laincord is free-and-open-source software which is maintained through community contributions. Please check out [link url=https://github.com/lkenna/Laincord]our GitHub repository[/link] if you'd like to help out. You don't have to be a skilled programmer or anything."
 	},
 	{
 		"date": 1765649921000,
-		"body": "[b]What happened to the Discord server?[/b] [link url=https://github.com/not-nullptr/Laincord/issues/160#issuecomment-3649680314]See motivations for its deletion here.[/link] We are sorry for the inconvenience. Perhaps tentatively, please submit scenes and ads [link url=https://github.com/not-nullptr/Laincord/pulls]through GitHub pull requests on the Laincord repository[/link]."
+		"body": "[b]What happened to the Discord server?[/b] [link url=https://github.com/lkenna/Laincord/issues/160#issuecomment-3649680314]See motivations for its deletion here.[/link] We are sorry for the inconvenience. Perhaps tentatively, please submit scenes and ads [link url=https://github.com/lkenna/Laincord/pulls]through GitHub pull requests on the Laincord repository[/link]."
 	}
 ]
