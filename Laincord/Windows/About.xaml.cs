@@ -20,7 +20,7 @@ namespace Laincord.Windows
 #endif
                 + "\n";
 
-            string credits = "Laincord is a project by nullptr. Most assets belong to Microsoft, please don't sue!\n\n";
+            string credits = "Laincord is a fork of Aerochat by nullptr. Most assets belong to Microsoft.\n\n";
 
             // Miscellaneous resource credits:
             credits += "==== Credits for resources used in Laincord ==== \n\n";
